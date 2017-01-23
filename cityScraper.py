@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup
+import csv
 
 class cityScraper:
     def __init__(self,cityName):
@@ -40,12 +41,25 @@ class cityScraper:
             pageNum+=1
         self.roomListFile.close()
     def scrapeRooms(self,roomListFile,outputFile):
+        self.roomList = []
         with open(roomListFile) as f:
             for line in f:
-                self.scrapeRoom(line.rstrip())
+                self.roomList.append(line.rstrip())
+        with open(outputFile,'w') as csvFile:
+            writer = csv.writer(csvFile,delimiter=',')
+            for room in self.roomList[0:3]:
+                line = self.scrapeRoom(room)
+                writer.writerow(line)
     def scrapeRoom(self,roomNum):
         url = 'https://www.airbnb.com/rooms/'+roomNum
-        print(url)
+        print('Scraping room info from ',url)
+        req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
+        page = urlopen(req).read()
+        soup = BeautifulSoup(page,"lxml")
+        lat = soup.find('meta',property='airbedandbreakfast:location:latitude').get('content')
+        lon = soup.find('meta',property='airbedandbreakfast:location:longitude').get('content')
+        featureVec = [lat,lon]
+        return featureVec
         
 c = cityScraper('San-Francisco--CA')
 c.scrapeRooms('SF_roomlist.txt','SF_data.csv')
