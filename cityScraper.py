@@ -2,6 +2,8 @@
 from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup
 import csv
+import pprint
+import json
 
 class cityScraper:
     def __init__(self,cityName):
@@ -46,22 +48,62 @@ class cityScraper:
             for line in f:
                 self.roomList.append(line.rstrip())
         with open(outputFile,'w') as csvFile:
-            writer = csv.writer(csvFile,delimiter=',')
-            for room in self.roomList[0:3]:
+            writer = csv.writer(csvFile,delimiter=';')
+            headers = ['roomID','acc_rating','bed_type','cancel_policy','checkin_rating','cleanliness_rating','communication_rating','guest_sat','hosting_id','instant_book','is_superhost','loc_rating','lat','lon','page','person_cap','pic_count','room_type','saved_to_wishlist_count','value_rating','rev_count','price','star_rating']
+            for i in range(1,51):
+                headers.append('amen'+str(i))
+            writer.writerow(headers)
+            for room in self.roomList:
                 line = self.scrapeRoom(room)
-                writer.writerow(line)
+                if len(line) > 0:
+                    writer.writerow(line)
     def scrapeRoom(self,roomNum):
         url = 'https://www.airbnb.com/rooms/'+roomNum
         print('Scraping room info from ',url)
-        req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
-        page = urlopen(req).read()
-        soup = BeautifulSoup(page,"lxml")
-        lat = soup.find('meta',property='airbedandbreakfast:location:latitude').get('content')
-        lon = soup.find('meta',property='airbedandbreakfast:location:longitude').get('content')
-        featureVec = [lat,lon]
-        return featureVec
-        
+        try:
+            req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
+            page = urlopen(req).read()
+            soup = BeautifulSoup(page,"lxml")
+            star_rating = soup.find('div',class_='star-rating').get('content')
+            meta = soup.find('meta',id='_bootstrap-room_options')
+            if not meta:
+                return []
+            dict0 = json.loads(meta.get('content'))
+            if not dict0:
+                return []
+            dataDict = dict0['airEventData']
+            if dataDict:
+                acc_rating = dataDict['accuracy_rating']
+                amenList = dataDict['amenities']
+                bed_type = dataDict['bed_type']
+                cancel_policy = dataDict['cancel_policy']
+                checkin_rating = dataDict['checkin_rating']
+                cleanliness_rating = dataDict['cleanliness_rating']
+                communication_rating = dataDict['communication_rating']
+                guest_sat = dataDict['guest_satisfaction_overall']
+                hosting_id = dataDict['hosting_id']
+                instant_book = dataDict['instant_book_possible']
+                is_superhost = dataDict['is_superhost']
+                loc_rating = dataDict['location_rating']
+                lat = dataDict['listing_lat']
+                lon = dataDict['listing_lng']
+                page = dataDict['page']
+                person_cap = dataDict['person_capacity']
+                pic_count = dataDict['picture_count']
+                price = dataDict['price']
+                room_type = dataDict['room_type']
+                saved_to_wishlist_count = dataDict['saved_to_wishlist_count']
+                value_rating = dataDict['value_rating']
+                rev_count = dataDict['visible_review_count']
+                featureVec = [roomNum,acc_rating,bed_type,cancel_policy,checkin_rating,cleanliness_rating,communication_rating,guest_sat,hosting_id,instant_book,is_superhost,loc_rating,lat,lon,page,person_cap,pic_count,room_type,saved_to_wishlist_count,value_rating,rev_count,price,star_rating]
+                for i in range(1,51):
+                    featureVec.append(i in amenList)
+                return featureVec
+            else:
+                return []
+        except:
+            return []
 c = cityScraper('San-Francisco--CA')
-c.scrapeRooms('SF_roomlist.txt','SF_data.csv')
+c.scrapeRooms('SF_roomlist.txt','SF_data_5.csv')
 #c.getRoomList()
 #print(len(c.roomList))
