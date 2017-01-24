@@ -18,8 +18,8 @@ class cityScraper:
         print(url)
         return url
     def getRooms(self,pageNum):
-        for room_type in ['Entire%20home%2Fapt','Private%20room','Shared%20room']:
-            for (price_min,price_max) in [(0,100),(101,200),(201,300),(301,-1)]:
+        for room_type in ['Private%20room']:#['Entire%20home%2Fapt','Private%20room','Shared%20room']:
+            for (price_min,price_max) in [(0,50),(51,75),(76,100),(101,150),(151,200),(201,300),(301,-1)]:
                 req = Request(self.getURL(room_type,price_min,price_max,pageNum),headers={'User-Agent':'Mozilla/5.0'})
                 mainPage = urlopen(req).read()
                 mainSoup = BeautifulSoup(mainPage,"lxml")
@@ -104,6 +104,7 @@ class cityScraper:
         except:
             return []
 c = cityScraper('San-Francisco--CA')
-c.scrapeRooms('SF_roomlist.txt','SF_data_5.csv')
-#c.getRoomList()
-#print(len(c.roomList))
+c.getRoomList()
+c.scrapeRooms('SF_roomlist_private.txt','SF_data_private.csv')
+
+print(len(c.roomList))
