@@ -6,65 +6,81 @@ import pprint
 import json
 
 class cityScraper:
-    def __init__(self,cityName):
-        self.roomList = []
-        self.cityName = cityName
-        self.roomListFile = open('newRoomList.txt','w')
-    def getURL(self,room_type,price_min,price_max,page_num):
-        if price_max > 0:
-            url= 'https://www.airbnb.com/s/'+self.cityName+'?room_types[]='+room_type+'&price_min='+str(price_min)+'&price_max='+str(price_max)+'&page='+str(page_num)
-        else:
-            url= 'https://www.airbnb.com/s/'+self.cityName+'?room_types[]='+room_type+'&price_min='+str(price_min)+'&page='+str(page_num)
-        print(url)
-        return url
-    def getRooms(self,pageNum):
-        for room_type in ['Private%20room']:#['Entire%20home%2Fapt','Private%20room','Shared%20room']:
-            for (price_min,price_max) in [(0,50),(51,75),(76,100),(101,150),(151,200),(201,300),(301,-1)]:
-                req = Request(self.getURL(room_type,price_min,price_max,pageNum),headers={'User-Agent':'Mozilla/5.0'})
-                mainPage = urlopen(req).read()
-                mainSoup = BeautifulSoup(mainPage,"lxml")
-                all_links = mainSoup.find_all('a')
+    def __init__(self):
+        pass
+    def getLastPage(self,city_name,room_type,price_min,price_max):
+        url = self.getURL(city_name,room_type,price_min,price_max,1)
+        req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
+        page = urlopen(req).read()
+        soup = BeautifulSoup(page,"lxml")
+        lastPage = 1
+        for link in soup.find_all('a'):
+            href = link.get('href')
+            if not href:
+                continue
+            if '/s/'+city_name+'?page=' in href:
+                pageLink = int(href.split('=')[1])
+                if pageLink > lastPage:
+                    lastPage = pageLink
+        return lastPage
+    def scrapeRoomIDs(self,city_name,room_type):
+        for (price_min,price_max) in [(0,40),(41,45),(46,50),(51,55),(56,59),(60,61),(62,63),(64,65),(66,68),(69,70),(71,73),(74,75),(76,78),(79,80),(81,85),(86,90),(91,95),(96,100),(101,150),(151,200),(201,-1)]:
+            lastPage = self.getLastPage(city_name,room_type,price_min,price_max)
+            for page_num in range(1,lastPage+1):
+                url = self.getURL(city_name,room_type,price_min,price_max,page_num)
+                print('scraping room IDs from %s' % url)
+                req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
+                page = urlopen(req).read()
+                soup = BeautifulSoup(page,"lxml")
+                all_links = soup.find_all('a')
                 for link in all_links:
                     href = link.get('href')
                     if href:
                         if '/rooms/' in href and not 'new?' in href:
-                            roomNum = int(href.split('/')[2])
-                            yield roomNum
-    def getRoomList(self):
-        pageNum = 1
-        addedRoom = True
-        while addedRoom:
-            addedRoom = False
-            for roomNum in self.getRooms(pageNum):
-                if roomNum not in self.roomList:
-                    self.roomList.append(roomNum)
-                    self.roomListFile.write(str(roomNum)+'\n')
-                    addedRoom = True
-            pageNum+=1
-        self.roomListFile.close()
-    def scrapeRooms(self,roomListFile,outputFile):
-        self.roomList = []
-        with open(roomListFile) as f:
+                            room_id = int(href.split('/')[2])
+                            yield str(room_id)
+    def getURL(self,city_name,room_type,price_min,price_max,page_num):
+        if price_max > 0:
+            url= 'https://www.airbnb.com/s/'+city_name+'?room_types[]='+room_type+'&price_min='+str(price_min)+'&price_max='+str(price_max)+'&page='+str(page_num)
+        else:
+            url= 'https://www.airbnb.com/s/'+city_name+'?room_types[]='+room_type+'&price_min='+str(price_min)+'&page='+str(page_num)
+        return url
+    def writeRoomIDs(self,city_name,room_type,out_file):
+        f = open(out_file,'w')
+        idList = []
+        for roomID in self.scrapeRoomIDs(city_name,room_type):
+            if not roomID in idList:
+                idList.append(roomID)
+                f.write(roomID+'\n')
+    def scrapeRooms(self,room_file,out_file):
+        room_list = []
+        with open(room_file) as f:
             for line in f:
-                self.roomList.append(line.rstrip())
-        with open(outputFile,'w') as csvFile:
+                room_list.append(line.rstrip())
+        with open(out_file,'w') as csvFile:
             writer = csv.writer(csvFile,delimiter=';')
-            headers = ['roomID','acc_rating','bed_type','cancel_policy','checkin_rating','cleanliness_rating','communication_rating','guest_sat','hosting_id','instant_book','is_superhost','loc_rating','lat','lon','page','person_cap','pic_count','room_type','saved_to_wishlist_count','value_rating','rev_count','price','star_rating']
+            headers = ['room_id','acc_rating','bed_type','cancel_policy','checkin_rating',
+                       'cleanliness_rating','communication_rating','guest_sat','hosting_id',
+                       'instant_book','is_superhost','loc_rating','lat','lon','page','person_cap',
+                       'pic_count','room_type','saved_to_wishlist_count','value_rating','rev_count','price','star_rating']
             for i in range(1,51):
-                headers.append('amen'+str(i))
+                headers.append('amen_'+str(i))
             writer.writerow(headers)
-            for room in self.roomList:
-                line = self.scrapeRoom(room)
+            for room_id in room_list:
+                line = self.scrapeRoom(room_id)
                 if len(line) > 0:
-                    writer.writerow(line)
-    def scrapeRoom(self,roomNum):
-        url = 'https://www.airbnb.com/rooms/'+roomNum
+                    writer.writerow(line)                
+    def scrapeRoom(self,room_id):
+        url = 'https://www.airbnb.com/rooms/'+room_id
         print('Scraping room info from ',url)
         try:
             req = Request(url,headers={'User-Agent':'Mozilla/5.0'})
             page = urlopen(req).read()
             soup = BeautifulSoup(page,"lxml")
-            star_rating = soup.find('div',class_='star-rating').get('content')
+            star_rating = 0
+            star_rating_tag = soup.find('div',class_='star-rating')
+            if star_rating_tag:
+                star_rating=star_rating_tag.get('content')
             meta = soup.find('meta',id='_bootstrap-room_options')
             if not meta:
                 return []
@@ -95,7 +111,7 @@ class cityScraper:
                 saved_to_wishlist_count = dataDict['saved_to_wishlist_count']
                 value_rating = dataDict['value_rating']
                 rev_count = dataDict['visible_review_count']
-                featureVec = [roomNum,acc_rating,bed_type,cancel_policy,checkin_rating,cleanliness_rating,communication_rating,guest_sat,hosting_id,instant_book,is_superhost,loc_rating,lat,lon,page,person_cap,pic_count,room_type,saved_to_wishlist_count,value_rating,rev_count,price,star_rating]
+                featureVec = [room_id,acc_rating,bed_type,cancel_policy,checkin_rating,cleanliness_rating,communication_rating,guest_sat,hosting_id,instant_book,is_superhost,loc_rating,lat,lon,page,person_cap,pic_count,room_type,saved_to_wishlist_count,value_rating,rev_count,price,star_rating]
                 for i in range(1,51):
                     featureVec.append(i in amenList)
                 return featureVec
@@ -103,8 +119,4 @@ class cityScraper:
                 return []
         except:
             return []
-c = cityScraper('San-Francisco--CA')
-c.getRoomList()
-c.scrapeRooms('SF_roomlist_private.txt','SF_data_private.csv')
 
-print(len(c.roomList))
